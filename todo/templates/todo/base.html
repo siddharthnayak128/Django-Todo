@@ -66,7 +66,247 @@
 {% block content %}{% endblock %}
 </div>
 
-<!-- Optional JavaScript -->
+<!-- OpenAi JavaScript -->
+<!-- Floating Chat Button + Slide-in Panel -->
+<style>
+    #chat-fab {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      width: 56px;
+      height: 56px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+      font-size: 22px;
+      box-shadow: 0 10px 25px rgba(0,0,0,.18);
+      z-index: 9999;
+    }
+  
+    #chat-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s ease;
+      z-index: 9998;
+    }
+  
+    #chat-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      height: 100vh;
+      width: 360px;
+      max-width: calc(100vw - 24px);
+      background: #fff;
+      box-shadow: -10px 0 30px rgba(0,0,0,.18);
+      transform: translateX(110%);
+      transition: transform .22s ease;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+    }
+  
+    #chat-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  
+    #chat-panel.open {
+      transform: translateX(0);
+    }
+  
+    #chat-header {
+      padding: 14px 14px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+  
+    #chat-title {
+      font-weight: 700;
+      margin: 0;
+      font-size: 16px;
+    }
+  
+    #chat-close {
+      border: 1px solid #e5e7eb;
+      background: #fff;
+      cursor: pointer;
+      border-radius: 10px;
+      padding: 6px 10px;
+    }
+  
+    #chat-log {
+      padding: 14px;
+      overflow: auto;
+      flex: 1;
+      background: #fafafa;
+    }
+  
+    .msg {
+      margin: 0 0 12px;
+      line-height: 1.35;
+    }
+    .msg .who {
+      font-weight: 700;
+      margin-right: 6px;
+    }
+    .msg.you .bubble {
+      background: #eaf2ff;
+      border: 1px solid #d6e6ff;
+    }
+    .msg.bot .bubble {
+      background: #ffffff;
+      border: 1px solid #e7e7e7;
+    }
+    .bubble {
+      display: inline-block;
+      padding: 10px 12px;
+      border-radius: 14px;
+      max-width: 100%;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+  
+    #chat-input-row {
+      padding: 12px;
+      border-top: 1px solid #eee;
+      display: flex;
+      gap: 8px;
+      background: #fff;
+    }
+  
+    #chat-input {
+      flex: 1;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      padding: 10px 12px;
+      outline: none;
+    }
+  
+    #chat-send {
+      border: none;
+      background: #111827;
+      color: #fff;
+      border-radius: 12px;
+      padding: 10px 14px;
+      cursor: pointer;
+    }
+  
+    #chat-send:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+  </style>
+  
+  <button id="chat-fab" aria-label="Open chat">💬</button>
+  <div id="chat-overlay"></div>
+  
+  <div id="chat-panel" aria-hidden="true">
+    <div id="chat-header">
+      <p id="chat-title">Todo Woo Assistant</p>
+      <button id="chat-close" type="button">Close</button>
+    </div>
+  
+    <div id="chat-log"></div>
+  
+    <div id="chat-input-row">
+      <input id="chat-input" type="text" placeholder="Type a message..." />
+      <button id="chat-send" type="button">Send</button>
+    </div>
+  </div>
+  
+  <script>
+    const fab = document.getElementById("chat-fab");
+    const overlay = document.getElementById("chat-overlay");
+    const panel = document.getElementById("chat-panel");
+    const closeBtn = document.getElementById("chat-close");
+    const log = document.getElementById("chat-log");
+    const input = document.getElementById("chat-input");
+    const sendBtn = document.getElementById("chat-send");
+  
+    function openChat() {
+      overlay.classList.add("open");
+      panel.classList.add("open");
+      panel.setAttribute("aria-hidden", "false");
+      if (!log.dataset.greeted) {
+        addMsg("bot", "Hi! I can help you use Todo Woo.");
+        log.dataset.greeted = "1";
+      }
+      setTimeout(() => input.focus(), 50);
+    }
+  
+    function closeChat() {
+      overlay.classList.remove("open");
+      panel.classList.remove("open");
+      panel.setAttribute("aria-hidden", "true");
+    }
+  
+    function addMsg(role, text) {
+      const wrap = document.createElement("div");
+      wrap.className = `msg ${role}`;
+  
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+  
+      const who = document.createElement("span");
+      who.className = "who";
+      who.textContent = role === "you" ? "You:" : "Bot:";
+  
+      bubble.appendChild(who);
+      bubble.appendChild(document.createTextNode(" " + text));
+  
+      wrap.appendChild(bubble);
+      log.appendChild(wrap);
+      log.scrollTop = log.scrollHeight;
+    }
+  
+    async function sendMessage() {
+      const text = input.value.trim();
+      if (!text) return;
+  
+      addMsg("you", text);
+      input.value = "";
+      sendBtn.disabled = true;
+  
+      try {
+        const r = await fetch("/api/chat/", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ message: text })
+        });
+  
+        const data = await r.json();
+        addMsg("bot", data.reply || data.error || "No response");
+      } catch (e) {
+        addMsg("bot", "Network error");
+      } finally {
+        sendBtn.disabled = false;
+        input.focus();
+      }
+    }
+  
+    fab.addEventListener("click", openChat);
+    overlay.addEventListener("click", closeChat);
+    closeBtn.addEventListener("click", closeChat);
+  
+    sendBtn.addEventListener("click", sendMessage);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendMessage();
+      if (e.key === "Escape") closeChat();
+    });
+  
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeChat();
+    });
+  </script>
 <!-- jQuery first, then Popper.js, then Bootstrap JS -->
 <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>

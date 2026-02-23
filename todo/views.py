@@ -7,6 +7,41 @@ from .forms import TodoForm
 from .models import Todo
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required
+import json
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from openai import OpenAI
+
+client = OpenAI()  # reads OPENAI_API_KEY from environment by default :contentReference[oaicite:1]{index=1}
+
+client = OpenAI()  # reads OPENAI_API_KEY from environment
+
+@csrf_exempt
+def chat(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST only"}, status=405)
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    user_message = data.get("message", "").strip()
+
+    if not user_message:
+        return JsonResponse({"error": "Empty message"}, status=400)
+
+    try:
+        response = client.responses.create(
+            model="gpt-5.2",
+            instructions="You are a helpful website assistant. Keep answers short and clear.",
+            input=user_message,
+        )
+
+        return JsonResponse({"reply": response.output_text})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 def home(request):
     return render(request, 'todo/home.html')
@@ -95,3 +130,6 @@ def deletetodo(request, todo_pk):
     if request.method == 'POST':
         todo.delete()
         return redirect('currenttodos')
+
+client = OpenAI()  # reads OPENAI_API_KEY from environment
+
